@@ -1,65 +1,113 @@
 #!/usr/bin/env python
 'Process the output logfile from ioping.py'
-import logging
-import os
-import sys
+import re
 
-import numpy
-
-def read_logfile(filename):
-  readings = []
-  try:
-    with open(filename, 'r') as logfile:
-      for line in logfile:
-        time, reading = line.split(': ')
-        readings.append([int(time), float(reading)])
-  except IOError:
-    logging.error('Unable to open file: args=%r', args)
-    raise
-  return readings
+from cement.core import controller, foundation, handler
+from numpy.core.multiarray import array
+from numpy.lib.function_base import histogram, percentile
 
 def print_title(title):
+  'helper funtion, print title underlined with a row of = characters.'
   print title
   print '=' * len(title)
 
-def print_distribution_stats(readings_array):
-  print 'Minimum: %0.3f' % readings_array.min()
-  print 'Maximum: %0.3f' % readings_array.max()
-  print 'Mean: %0.3f' % readings_array.mean()
-  print 'Deviation: %0.3f' % readings_array.std()
-  print 'Median: %0.3f' % numpy.percentile(readings_array, 50)
-  print '80th Percentile: %0.3f' % numpy.percentile(readings_array, 80)
-  print
+class HistogramBaseController(controller.CementBaseController):
+  'Controller for histogram app.'
+  class Meta:
+    # pylint doesn't like the way that cement Meta classes work...
+    # pylint: disable=C1001, W0232, C0111, R0903
+    label = 'base'
+    arguments = [
+      (['-i', '--input_file'], {
+        'help': 'Input file to read data from',
+        'action': 'store',
+        'required': True,
+      }),
+      (['-p', '--pattern'], {
+        'help': ('Regular expression containing a match group identifying '
+                 'the value to plot the histogram for.'),
+        'action': 'store',
+        'required': True,
+      }),
+      (['-b', '--bins'], {
+        'help': 'Number of bins to display in histogram',
+        'action': 'store',
+        'default': 10,
+        'type': int,
+      }),
+    ]
 
-def print_histogram(readings_array):
-  (bins, edges) = numpy.histogram(readings_array, bins=10)
-  scale = 50.0 / max(bins)
-  for i in range(len(bins)):
-    print '[%10.3f] [%10d] %s' % (edges[i], bins[i], '*' * int(bins[i]*scale))
-  print
+  def __init__(self):
+    super(HistogramBaseController, self).__init__()
+    self.readings_array = array([])
 
-def main(args):
-  logger = logging.getLogger()
-  logger.setLevel(logging.INFO)
+  def _read_logfile(self):
+    'Read in the input_file and match lines against pattern'
+    readings = []
+    reading_pattern = re.compile(self.app.pargs.pattern)
+    try:
+      with open(self.app.pargs.input_file, 'r') as logfile:
+        for line in logfile:
+          match = reading_pattern.match(line)
+          readings.append([float(m) for m in match.groups()])
+    except IOError:
+      self.app.log.error('Unable to open file: args=%r' %
+                         self.app.pargs.input_file)
+      raise
+    return readings
 
-  readings = read_logfile(args[0])
-  readings_array = numpy.array(readings)[:,1]
+  def _print_histogram(self, title, condition=lambda x: True):
+    'Display a histogram for readings matching condition.'
+    print_title(title)
+    readings = [
+      reading for reading in self.readings_array if condition(reading)
+    ]
+    (bins, edges) = histogram(readings, bins=self.app.pargs.bins)
+    scale = 50.0 / max(bins)
+    for bin_edge, bin_value in zip(edges, bins):
+      print '[%10.3f] [%10d] %s' % (bin_edge, bin_value,
+                                    '*' * int(bin_value*scale))
+    print
 
-  print_title('Distribution details')
-  print_distribution_stats(readings_array)
+  def _print_distribution_stats(self):
+    'Print a summary table of distribution stats.'
+    print_title('Distribution stats')
+    print 'Minimum: %0.3f' % self.readings_array.min()
+    print 'Maximum: %0.3f' % self.readings_array.max()
+    print 'Mean: %0.3f' % self.readings_array.mean()
+    print 'Deviation: %0.3f' % self.readings_array.std()
+    print 'Median: %0.3f' % percentile(self.readings_array, 50)
+    print '80th Percentile: %0.3f' % percentile(self.readings_array, 80)
+    print
 
-  print_title('Full distribution histogram')
-  print_histogram(readings_array)
+  @controller.expose(hide=True, aliases=['run'])
+  def default(self):
+    'Base controller for application.'
+    readings = self._read_logfile()
+    self.readings_array = array(readings)[:, 0]
 
-  eighty_twenty = numpy.percentile(readings_array, 80)
+    self._print_distribution_stats()
+    self._print_histogram('Full distribution histogram')
 
-  print_title('Distribution of 80th percentile')
-  print_histogram(
-    [value for value in readings_array if value <= eighty_twenty])
+    eighty_twenty = percentile(self.readings_array, 80)
 
-  print_title('Distribution of remainder')
-  print_histogram(
-    [value for value in readings_array if value > eighty_twenty])
+    self._print_histogram('Distribution of 80th percentile',
+                          condition=lambda x: x <= eighty_twenty)
+
+    self._print_histogram('Distribution of remainder',
+                          condition=lambda x: x > eighty_twenty)
+
+
+def main():
+  'Initialise and execute the cement app.'
+  histogram_app = foundation.CementApp('histogram')
+  handler.register(HistogramBaseController)
+
+  try:
+    histogram_app.setup()
+    histogram_app.run()
+  finally:
+    histogram_app.close()
 
 if __name__ == '__main__':
-  main(sys.argv[1:])
+  main()
