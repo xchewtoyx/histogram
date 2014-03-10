@@ -20,7 +20,7 @@ def main(args):
 
   readings_array = numpy.array(readings)
 
-  (bins, edges) = numpy.histogram(readings_array[:,1])
+  (bins, edges) = numpy.histogram(readings_array[:,1], bins=20)
 
   scale = 50.0 / max(bins)
 
