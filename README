@@ -1,0 +1,9 @@
+A simple command line app to read in a log file and produce some distribution
+statistics and histograms.
+
+usage:
+
+histogram.py -i INPUTFILE -p PATTERN
+
+PATTERN is a regular expression with a capture group to identify the data to 
+analyse.
