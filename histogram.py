@@ -9,24 +9,25 @@ from numpy.lib.function_base import histogram, percentile
 
 def zoom_type(zoom_string):
   'Validate zoom string and convert to interval list.'
-  # Allow an empty string to disable zoom
-  if not zoom_string:
-    zoom_string = '0:100'
-  try:
-    if ':' not in zoom_string:
-      raise ValueError
-    zoom_intervals = []
-    for interval_string in zoom_string.split(':'):
-      interval = int(interval_string)
-      if interval < 0:
+  zoom_intervals = []
+
+  # If zoom string is not empty, parse it for details
+  if zoom_string:
+    try:
+      if ':' not in zoom_string:
         raise ValueError
-      zoom_intervals.append(interval)
-    if sum(zoom_intervals) != 100:
-      raise ValueError
-  except ValueError:
-    raise ArgumentTypeError(
-      'Zoom must be a colon separated list of positive integers and must '
-      'total to 100.')
+      for interval_string in zoom_string.split(':'):
+        interval = int(interval_string)
+        if interval < 0:
+          raise ValueError
+        zoom_intervals.append(interval)
+      if sum(zoom_intervals) != 100:
+        raise ValueError
+    except ValueError:
+      raise ArgumentTypeError(
+        'Zoom must be a colon separated list of positive integers and '
+        'must total to 100.')
+
   return zoom_intervals
 
 class HistogramBaseController(controller.CementBaseController):
@@ -110,6 +111,7 @@ class HistogramBaseController(controller.CementBaseController):
   def _print_distribution_stats(self):
     'Print a summary table of distribution stats.'
     self._print_title('Distribution stats')
+    print 'Number of values: %d' % len(self.readings_array)
     print 'Minimum: %0.3f' % self.readings_array.min()
     print 'Maximum: %0.3f' % self.readings_array.max()
     print 'Mean: %0.3f' % self.readings_array.mean()
@@ -120,7 +122,7 @@ class HistogramBaseController(controller.CementBaseController):
 
   def _print_zoom_histograms(self):
     'Generates zoom histograms based on user specified intervals'
-    if self.app.pargs.zoom[0] == 0:
+    if not self.app.pargs.zoom or not self.app.pargs.zoom[0]:
       return
 
     interval_start = 0
