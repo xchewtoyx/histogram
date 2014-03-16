@@ -22,7 +22,7 @@ def zoom_type(zoom_string):
       zoom_intervals.append(interval)
     if sum(zoom_intervals) != 100:
       raise ValueError
-  except (AssertionError, ValueError):
+  except ValueError:
     raise ArgumentTypeError(
       'Zoom must be a colon separated list of positive integers and must '
       'total to 100.')
