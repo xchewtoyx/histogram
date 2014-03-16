@@ -6,11 +6,6 @@ from cement.core import controller, foundation, handler
 from numpy.core.multiarray import array
 from numpy.lib.function_base import histogram, percentile
 
-def print_title(title):
-  'helper funtion, print title underlined with a row of = characters.'
-  print title
-  print '=' * len(title)
-
 class HistogramBaseController(controller.CementBaseController):
   'Controller for histogram app.'
   class Meta:
@@ -56,9 +51,14 @@ class HistogramBaseController(controller.CementBaseController):
       raise
     return readings
 
+  def _print_title(self, title):
+    'helper funtion, print title underlined with a row of = characters.'
+    print title
+    print '=' * len(title)
+
   def _print_histogram(self, title, condition=lambda x: True):
     'Display a histogram for readings matching condition.'
-    print_title(title)
+    self._print_title(title)
     readings = [
       reading for reading in self.readings_array if condition(reading)
     ]
@@ -71,7 +71,7 @@ class HistogramBaseController(controller.CementBaseController):
 
   def _print_distribution_stats(self):
     'Print a summary table of distribution stats.'
-    print_title('Distribution stats')
+    self._print_title('Distribution stats')
     print 'Minimum: %0.3f' % self.readings_array.min()
     print 'Maximum: %0.3f' % self.readings_array.max()
     print 'Mean: %0.3f' % self.readings_array.mean()
