@@ -1,9 +1,24 @@
-A simple command line app to read in a log file and produce some distribution
-statistics and histograms.
+A simple command line app to read in a log file and produce some
+distribution statistics and histograms.
 
 usage:
 
 histogram.py -i INPUTFILE -p PATTERN
 
-PATTERN is a regular expression with a capture group to identify the data to 
-analyse.
+PATTERN is a regular expression with a capture group to identify
+the data to analyse.
+
+Optional arguments:
+
+--bins Number of bins to display in the histogram
+
+--zoom
+
+Zoom in on certain percentile bands. This is a colon separated list
+of positive integers that must sum to 100. For example the default
+of 80:20 will display a distribution of the 80th centile and then
+a distribution of the remainder. 10:80:10 would display three
+distributions, distribution of values in the 10th centile, the
+11-90th centile and the 91-100th centile. To disable zoom provide
+an empty string to this argument, or a valid distribution starting
+with 0: (e.g. 0:100).
