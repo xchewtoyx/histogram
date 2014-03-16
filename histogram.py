@@ -8,6 +8,7 @@ from numpy.core.multiarray import array
 from numpy.lib.function_base import histogram, percentile
 
 def zoom_type(zoom_string):
+  'Validate zoom string and convert to interval list.'
   # Allow an empty string to disable zoom
   if not zoom_string:
     zoom_string = '0:100'
@@ -118,6 +119,7 @@ class HistogramBaseController(controller.CementBaseController):
     print
 
   def _print_zoom_histograms(self):
+    'Generates zoom histograms based on user specified intervals'
     if self.app.pargs.zoom[0] == 0:
       return
 
@@ -126,16 +128,22 @@ class HistogramBaseController(controller.CementBaseController):
     # makes the condition match easier (min < x <= max)
     min_value = self.readings_array.min() - 1
     for interval_width in self.app.pargs.zoom:
+      if not interval_width:
+        self.app.log.info(
+          'Skipping zero width interval at %dth percentile' % (interval_start))
+        continue
       interval_end = interval_start + interval_width
+      max_value = percentile(self.readings_array, interval_end)
       title = 'Distribution of values in percentile range %d - %d' % (
         interval_start, interval_end)
 
       def value_in_interval(value):
-        if interval_start < value <= interval_end:
+        if min_value < value <= max_value:
           return value
 
       self._print_histogram(title, condition=value_in_interval)
       interval_start = interval_end
+      min_value = max_value
 
   @controller.expose(hide=True, aliases=['run'])
   def default(self):
