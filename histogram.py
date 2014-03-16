@@ -1,10 +1,32 @@
 #!/usr/bin/env python
 'Process the output logfile from ioping.py'
+from argparse import ArgumentTypeError
 import re
 
 from cement.core import controller, foundation, handler
 from numpy.core.multiarray import array
 from numpy.lib.function_base import histogram, percentile
+
+def zoom_type(zoom_string):
+  # Allow an empty string to disable zoom
+  if not zoom_string:
+    zoom_string = '0:100'
+  try:
+    if ':' not in zoom_string:
+      raise ValueError
+    zoom_intervals = []
+    for interval_string in zoom_string.split(':'):
+      interval = int(interval_string)
+      if interval < 0:
+        raise ValueError
+      zoom_intervals.append(interval)
+    if sum(zoom_intervals) != 100:
+      raise ValueError
+  except (AssertionError, ValueError):
+    raise ArgumentTypeError(
+      'Zoom must be a colon separated list of positive integers and must '
+      'total to 100.')
+  return zoom_intervals
 
 class HistogramBaseController(controller.CementBaseController):
   'Controller for histogram app.'
@@ -29,6 +51,21 @@ class HistogramBaseController(controller.CementBaseController):
         'action': 'store',
         'default': 10,
         'type': int,
+      }),
+      (['--zoom'], {
+        'help': (
+          'Zoom in on certain percentile bands.  This is a colon separated '
+          'list of positive integers that must sum to 100.  For example '
+          'the default of 80:20 will display a distribution of the 80th '
+          'centile and then a distribution of the remainder. 10:80:10 '
+          'would display three distributions, distribution of values in '
+          'the 10th centile, the 11-90th centile and the 91-100th centile. '
+          'To disable zoom provide an empty string to this argument, or a '
+          'valid distribution starting with 0: (e.g. 0:100).'
+        ),
+        'action': 'store',
+        'default': [80, 20],
+        'type': zoom_type,
       }),
     ]
 
@@ -80,6 +117,26 @@ class HistogramBaseController(controller.CementBaseController):
     print '80th Percentile: %0.3f' % percentile(self.readings_array, 80)
     print
 
+  def _print_zoom_histograms(self):
+    if self.app.pargs.zoom[0] == 0:
+      return
+
+    interval_start = 0
+    # set the initial minimum to less than the input minimum
+    # makes the condition match easier (min < x <= max)
+    min_value = self.readings_array.min() - 1
+    for interval_width in self.app.pargs.zoom:
+      interval_end = interval_start + interval_width
+      title = 'Distribution of values in percentile range %d - %d' % (
+        interval_start, interval_end)
+
+      def value_in_interval(value):
+        if interval_start < value <= interval_end:
+          return value
+
+      self._print_histogram(title, condition=value_in_interval)
+      interval_start = interval_end
+
   @controller.expose(hide=True, aliases=['run'])
   def default(self):
     'Base controller for application.'
@@ -88,14 +145,7 @@ class HistogramBaseController(controller.CementBaseController):
 
     self._print_distribution_stats()
     self._print_histogram('Full distribution histogram')
-
-    eighty_twenty = percentile(self.readings_array, 80)
-
-    self._print_histogram('Distribution of 80th percentile',
-                          condition=lambda x: x <= eighty_twenty)
-
-    self._print_histogram('Distribution of remainder',
-                          condition=lambda x: x > eighty_twenty)
+    self._print_zoom_histograms()
 
 
 def main():
